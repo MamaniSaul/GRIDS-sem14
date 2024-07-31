@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Restaurant Finder with OpenStreetMap</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        #map {
+            height: 500px;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Find Nearby Restaurants</h1>
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+    const gridSize = 0.01; // Define the size of each grid cell
+    const restaurants = [
+        {name: "Restaurant A", lat: -15.8402, lng: -70.0219},
+        {name: "Restaurant B", lat: -15.8410, lng: -70.0205},
+        {name: "Restaurant C", lat: -15.8420, lng: -70.0195},
+        {name: "Restaurant D", lat: -15.8390, lng: -70.0225},
+        {name: "Restaurant E", lat: -15.8380, lng: -70.0235},
+        {name: "Restaurant F", lat: -15.8370, lng: -70.0245}
+        // Add more restaurants as needed
+    ];
+
+    function getGridCell(lat, lng) {
+        const latCell = Math.floor(lat / gridSize);
+        const lngCell = Math.floor(lng / gridSize);
+        return `${latCell},${lngCell}`;
+    }
+
+    function assignRestaurantsToGrid(restaurants) {
+        const grid = {};
+        restaurants.forEach(restaurant => {
+            const cell = getGridCell(restaurant.lat, restaurant.lng);
+            if (!grid[cell]) {
+                grid[cell] = [];
+            }
+            grid[cell].push(restaurant);
+        });
+        return grid;
+    }
+
+    function findNearbyRestaurants(lat, lng) {
+        const cell = getGridCell(lat, lng);
+        const restaurantsInCell = restaurantGrid[cell] || [];
+
+        // Sort restaurants by distance to the given lat, lng
+        restaurantsInCell.sort((a, b) => {
+            const distanceA = Math.sqrt((a.lat - lat) ** 2 + (a.lng - lng) ** 2);
+            const distanceB = Math.sqrt((b.lat - lat) ** 2 + (b.lng - lng) ** 2);
+            return distanceA - distanceB;
+        });
+
+        // Return the top 3 closest restaurants
+        return restaurantsInCell.slice(0, 3);
+    }
+
+    const restaurantGrid = assignRestaurantsToGrid(restaurants);
+
+    function initMap() {
+        const map = L.map('map').setView([-15.8402, -70.0219], 14);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Draw the grid on the map
+        drawGrid(map);
+
+        let clickMarker;
+
+        map.on('click', function(e) {
+            const { lat, lng } = e.latlng;
+
+            // Add or move the click marker
+            if (clickMarker) {
+                clickMarker.setLatLng(e.latlng);
+            } else {
+                clickMarker = L.marker(e.latlng, {icon: L.icon({iconUrl: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png'})}).addTo(map);
+            }
+
+            const nearbyRestaurants = findNearbyRestaurants(lat, lng);
+
+            const popupContent = nearbyRestaurants.length > 0
+                ? nearbyRestaurants.map(r => r.name).join('<br>')
+                : 'No restaurants found nearby';
+
+            clickMarker.bindPopup(popupContent).openPopup();
+        });
+
+        restaurants.forEach(restaurant => {
+            L.marker([restaurant.lat, restaurant.lng]).addTo(map)
+                .bindPopup(restaurant.name);
+        });
+    }
+
+    function drawGrid(map) {
+        const bounds = map.getBounds();
+        const southWest = bounds.getSouthWest();
+        const northEast = bounds.getNorthEast();
+
+        const minLat = Math.floor(southWest.lat / gridSize) * gridSize;
+        const maxLat = Math.ceil(northEast.lat / gridSize) * gridSize;
+        const minLng = Math.floor(southWest.lng / gridSize) * gridSize;
+        const maxLng = Math.ceil(northEast.lng / gridSize) * gridSize;
+
+        for (let lat = minLat; lat <= maxLat; lat += gridSize) {
+            L.polyline([[lat, minLng], [lat, maxLng]], {color: 'blue', weight: 1}).addTo(map);
+        }
+        for (let lng = minLng; lng <= maxLng; lng += gridSize) {
+            L.polyline([[minLat, lng], [maxLat, lng]], {color: 'blue', weight: 1}).addTo(map);
+        }
+    }
+
+    window.onload = initMap;
+</script>
+
+</body>
+</html>
